@@ -1,38 +1,73 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Arrays;
 
 public class Server {
-    Socket socket = null;
-    int bytesRead = 0;
+    private Socket socket = null;
+    private ObjectInputStream inputObject;
+    private ObjectOutputStream outputObject;
 
     public Server (int port) {
-        System.out.println("Server started");
+        System.out.println("Server started...");
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             socket = serverSocket.accept();
             System.out.println("Client connected");
-            DataInputStream inputData = new DataInputStream(socket.getInputStream());
-            DataOutputStream outputData = new DataOutputStream(socket.getOutputStream());
-            while (socket.isConnected() && bytesRead <= 0) {
-                System.out.println("start reading...");
-                String fileName = inputData.readUTF();
-                String fileDir = "../FileTransferIO/ServerIO/src/main/resources"; //todo
-                OutputStream fileOut = new FileOutputStream(fileDir + "/" + fileName);
-                int fileSize = inputData.readInt();
-                System.out.println("fileName = " + fileName + ", fileParent = " + fileDir + ", fileSize = " + fileSize);
 
-                byte [] byteBuffer = new byte[1024];
-                while (fileSize > 0 && (bytesRead = inputData.read(byteBuffer, 0, Math.min(fileSize, byteBuffer.length))) != -1) {
-                    System.out.println("reading bytes = " + bytesRead);
-                    System.out.println("memory buffer:\n" + new String(byteBuffer, "UTF-8"));
-                    fileOut.write(byteBuffer, 0, bytesRead);
-                    fileSize -= bytesRead;
+            outputObject = new ObjectOutputStream(socket.getOutputStream());
+            inputObject = new ObjectInputStream(socket.getInputStream());
 
+            while (socket.isConnected()) {
+                ServiceMessage msg = (ServiceMessage) inputObject.readObject();
+                switch (msg.getMessageType()) {
+                    case CLOSE_CONNECTION: {
+                        closeConnection();
+                        break;
+                    }
+                    case CLIENT_SEND: receiveFile(msg);
+                    case CLIENT_RECEIVE: sendFile(msg);
                 }
-                socket.close();
-                System.out.println("...end reading");
             }
-            System.out.println("Close connection");
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void receiveFile(ServiceMessage msg) throws IOException{
+        String fileName = msg.getFileName();
+        String fileDir = "/Users/andrejdubovik/Desktop/";
+//        String fileDir = "../FileTransferIO/ServerIO/src/main/resources/";
+        int fileSize = msg.getFileSize();
+        try (OutputStream fileOut = Files.newOutputStream(Paths.get(fileDir + fileName))) {
+            int bytesRead;
+            int totalRead = 0;
+            int remainBytes = fileSize;
+            byte[] byteBuffer = new byte[Math.min(fileSize, bufSize())];
+            while (remainBytes > 0 && (bytesRead = inputObject.read(byteBuffer, 0, Math.min(remainBytes, byteBuffer.length))) != -1) {
+                fileOut.write(byteBuffer, 0, bytesRead);
+                totalRead += bytesRead;
+                remainBytes -= bytesRead;
+            }
+            int progress = (fileSize - remainBytes) / fileSize * 100;
+            System.out.println(progress + "% completed, received " + totalRead + " bytes");
+        }
+    }
+
+    private void sendFile(ServiceMessage msg) {
+
+    }
+
+    private int bufSize() {
+        // todo подумать над привязкой к размеру файла, количеству потоков итд
+        return 1024;
+    }
+
+    private void closeConnection() {
+        try {
+            inputObject.close();
+            outputObject.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
