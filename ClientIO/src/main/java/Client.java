@@ -53,7 +53,7 @@ public class Client {
     public void sendFile(File file) {
         try (DataInputStream readData = new DataInputStream(Files.newInputStream(file.toPath()))) {
             //Read
-            int fileSize = (int)file.length();
+            int fileSize = (int)file.length(); // see comment hw2
             byte [] arrayData = new byte[fileSize];
             readData.readFully(arrayData, 0, fileSize);
             //Send

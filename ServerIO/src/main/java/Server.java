@@ -3,7 +3,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
 
 public class Server {
     private Socket socket = null;
@@ -26,7 +25,16 @@ public class Server {
                         closeConnection();
                         break;
                     }
-                    case CLIENT_SEND: receiveFile(msg);
+                    case CLIENT_SEND: {
+                        Thread thread = new Thread(() -> {
+                            try {
+                                receiveFile(msg);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+                        thread.start();
+                    }
                     case CLIENT_RECEIVE: sendFile(msg);
                 }
             }
